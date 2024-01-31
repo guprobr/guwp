@@ -1,0 +1,50 @@
+version: "3" 
+# Defines which compose version to use
+services:
+  # Services line define which Docker images to run. In this case, it will be MySQL server and WordPress image.
+  db:
+    image: mariadb:latest
+    container_name: ${MOP_WP}-wp-db
+    # image: mysql:5.7 indicates the MySQL database container image from Docker Hub used in this installation.
+    # testing with mariadb now for new features
+    #restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: ${MOP_WP}-wp
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: 123456
+    volumes:      
+      - "./mysql:/var/lib/mysql"
+
+      # Previous four lines define the main variables needed for the MySQL container to work: database, database username, database user password, and the MySQL root password.
+  wordpress:
+    depends_on:
+      - db
+    image: wordpress:latest
+    container_name: ${MOP_WP}-wp
+    restart: always
+    # Restart line controls the restart mode, meaning if the container stops running for any reason, it will restart the process immediately.
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: 123456
+      WORDPRESS_DB_NAME: ${MOP_WP}-wp
+      WORDPRESS_CONFIG_EXTRA: |
+        define('FS_METHOD', 'direct');
+        define('WP_DEBUG_LOG', true);
+        define('WP_DEBUG_DISPLAY', false);
+        define('WPMS_SITE_ADMIN_COOKIE_PATH', '/');
+        define('WPMS_COOKIE_DOMAIN', false);
+        // SMTP Configuration
+        define('WPMS_ON', true);
+        define('SMTP_HOST', 'postmop');
+        define('SMTP_PORT', 25);
+        define('SMTP_AUTH', true);
+        define('SMTP_USER', 'administrador');
+        define('SMTP_PASS', 'A@cy3U');
+        define('SMTP_SECURE', 'no');
+
+# Similar to MySQL image variables, the last four lines define the main variables needed for the WordPress container to work properly with the MySQL container
+    volumes:
+      - "./wordpress:/var/www/html"
+      - "./htaccess:/var/www/html/.htaccess"

@@ -1,0 +1,54 @@
+name: Deploy Container WORDPRESS template
+
+on:
+  workflow_dispatch:
+    inputs:
+      MOP_WP:
+        description: 'ex: MARIO will be prefix that designates Docker container MARIO-wp, MARIO-wp-db etc project, DNS prefix, network, etc'
+        required: true
+      MOP_SERVER:
+        description: 'target deploy host - probably MOP-SERVER.agenciamop.com.br'
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+      - name: require SSH
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.MOP_INFRA_KEY }}
+      - name: Set up ENV
+        run: |
+          chmod +x ./ign.sh; chmod 770 ./ign.sh;
+          echo "MOP_REPO=${{ github.repository }}" > ./.env;
+          echo "MOP_WP=${{ inputs.MOP_WP }}" >> ./.env;
+          echo "MOP_SERVER=${{ inputs.MOP_SERVER }}" >> ./.env;
+          echo "MOP_ZONE=${{ secrets.MOP_ZONE }}" >> ./.env;
+          echo "MOP_TOKEN=${{ secrets.MOP_TOKEN }}" >> ./.env;
+          chmod 770 ./.env;
+      - name: try Build and Run Docker Container
+        run: |
+          #TESTA ANTES DE MANDAR PRO SERVIDOR
+          docker-compose up -d --build --force-recreate
+          echo "SUCESSO! Fazer deploy.";
+      - name: DEPLOY
+        run: |
+          # MAKE DIR
+          ssh -o StrictHostKeyChecking=no  mop@${{ inputs.MOP_SERVER }} "mkdir -p /home/mop/clientes/${{ inputs.MOP_WP }} && ls -lad /home/mop/clientes/${{ inputs.MOP_WP }}";
+          # CLONE REPO
+          export MOP_REPO=git@github.com:${{ github.repository }}
+          echo -n "git clone $MOP_REPO /home/mop/clientes/${{ inputs.MOP_WP }}/${{ inputs.MOP_WP }}-wp" > PAYLOAD.txt;
+          chmod +x PAYLOAD.txt; scp PAYLOAD.txt mop@${{ inputs.MOP_SERVER }}:/home/mop/clientes/${{ inputs.MOP_WP }}/;
+          ssh -o StrictHostKeyChecking=no  mop@${{ inputs.MOP_SERVER }} /bin/bash /home/mop/clientes/${{ inputs.MOP_WP }}/PAYLOAD.txt;
+
+          # SEND env
+          echo scp ./.env mop@${{ inputs.MOP_SERVER }}:/home/mop/clientes/${{ inputs.MOP_WP }}/${{ inputs.MOP_WP }}-wp/.env;
+          scp ./.env mop@${{ inputs.MOP_SERVER }}:/home/mop/clientes/${{ inputs.MOP_WP }}/${{ inputs.MOP_WP }}-wp/.env;
+          
+          # POST CFG with deploy script already on target server
+          ssh -o StrictHostKeyChecking=no  mop@${{ inputs.MOP_SERVER }} "/bin/bash /home/mop/clientes/${{ inputs.MOP_WP }}/${{ inputs.MOP_WP }}-wp/ign.sh ${{ inputs.MOP_WP}}";
+
+          echo FINALIZADO DEPLOY;
